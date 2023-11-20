@@ -123,9 +123,9 @@ def bot_movement(red, blue):
 
     if time_elapsed >= MOVEMENT_DURATION + COOLDOWN_DURATION:
         # Determine X-direction based on the blue player's X-coordinate
-    options = ["RIGHT", "LEFT"]
-    options2 = ['UP', 'DOWN']
-    direction_x = random.choice(options)  # Stop X-movement if already aligned
+        options = ["RIGHT", "LEFT"]
+        options2 = ['UP', 'DOWN']
+        direction_x = random.choice(options)  # Stop X-movement if already aligned
 
         # Determine Y-direction based on the blue player's Y-coordinate
         if red.y < blue.y:  # If red player is above the blue player
