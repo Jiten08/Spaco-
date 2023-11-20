@@ -123,20 +123,18 @@ def bot_movement(red, blue):
 
     if time_elapsed >= MOVEMENT_DURATION + COOLDOWN_DURATION:
         # Determine X-direction based on the blue player's X-coordinate
-        if red.x < blue.x:  # If red player is to the left of the blue player
-            direction_x = 'RIGHT'
-        elif red.x > blue.x:  # If red player is to the right of the blue player
-            direction_x = 'LEFT'
-        else:
-            direction_x = None  # Stop X-movement if already aligned
+    options = ["RIGHT", "LEFT"]
+    options2 = ['UP', 'DOWN']
+    direction_x = random.choice(options)  # Stop X-movement if already aligned
 
         # Determine Y-direction based on the blue player's Y-coordinate
         if red.y < blue.y:  # If red player is above the blue player
             direction_y = 'DOWN'
         elif red.y > blue.y:  # If red player is below the blue player
             direction_y = 'UP'
+            
         else:
-            direction_y = None  # Stop Y-movement if already aligned
+            direction_y = random.choice(options2)  # Stop Y-movement if already aligned
 
         last_movement_time = current_time
 
@@ -155,7 +153,7 @@ def bot_shoot(red_bullets, red):
     # Simulate bot shooting randomly
     shoot_probability = random.random()  # Generate a random number between 0 and 1
     
-    if shoot_probability < 1 and len(red_bullets) < MAX_BULLETS:
+    if shoot_probability < 0.9 and len(red_bullets) < MAX_BULLETS:
         bullet = pygame.Rect(red.x, red.y + red.height // 2 - 2, 10, 5)
         red_bullets.append(bullet)
         BULLET_HIT_SOUND.play()
