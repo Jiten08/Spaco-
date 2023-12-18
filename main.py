@@ -1,27 +1,55 @@
-import pygame, sys
+# Import necessary libraries
+import pygame
+import sys
 import os
 import random
 import time
+import mysql.connector
+from mysql.connector import errorcode
 from pygame.locals import *
-from button import Button
+from button import Button 
+import tkinter as tk
+from tkinter import simpledialog
+from tkinter import ttk
 
+# Database configuration
+db_config = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'Jiten123@',
+    'database': 'space',
+}
+
+# Connect to the database
+try:
+    cnx = mysql.connector.connect(**db_config)
+    cursor = cnx.cursor()
+except mysql.connector.Error as err:
+    # Handle connection errors
+    if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+        print("Error: Invalid credentials")
+    elif err.errno == errorcode.ER_BAD_DB_ERROR:
+        print("Error: Database does not exist")
+    else:
+        print("Error: {}".format(err))
+    sys.exit()
+
+# Initialize Pygame
 pygame.font.init()
 pygame.mixer.init()
 
-# Constants for colors and screen size
+# Constants and screen setup
 WIDTH, HEIGHT = 1400, 800
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-BLACK=(0,0,0)
+# ... (other color constants)
 
-
-# Set up the Pygame window
+# Initialize Pygame window
 win = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Space Shooter Menu")
-
-# Pygame font initialization
 FONT = pygame.font.Font("Assets/font.ttf", 50)
 
+# Load images and set up game elements
 WIN = pygame.display.set_mode((WIDTH, HEIGHT),pygame.RESIZABLE)
 pygame.display.set_caption("Space_Shooter")
 
@@ -35,8 +63,8 @@ WIN_FONT = pygame.font.Font("Assets/font.ttf", 100)
 BLUE_HIT = pygame.USEREVENT +1
 RED_HIT = pygame.USEREVENT +2
 
-MOVEMENT_DURATION = 0.000001  # Duration for each movement in seconds
-COOLDOWN_DURATION = 0.0000001
+MOVEMENT_DURATION = 1  # Duration for each movement in seconds
+
 last_movement_time = time.time()
 direction = None
 
@@ -56,9 +84,39 @@ RED_SPACESHIP = pygame.transform.rotate(pygame.transform.scale(RED_SPACESHIP, (S
 
 SPACE = pygame.transform.scale(pygame.image.load(os.path.join('Assets','space 4.png')),(WIDTH, HEIGHT))
 
+is_bot=False
 
-def draw_window(red, blue, red_bullets, blue_bullets,red_health, blue_health):
 
+# Function to update player score in the database
+def update_score(player, score):
+    try:
+        # Connect to the database
+        cnx = mysql.connector.connect(**db_config)
+        cursor = cnx.cursor()
+
+        # Execute SQL update query
+        update_query = "UPDATE player_scores SET score = %s WHERE player_name = %s"
+        cursor.execute(update_query, (player_score, player_name))
+
+        # Confirm if any rows were affected
+        rows_affected = cursor.rowcount
+        print(f"Rows affected: {rows_affected}")
+
+        # Commit the changes and close the cursor and connection
+        cnx.commit()
+        cursor.close()
+        cnx.close()
+
+        if rows_affected == 0:
+            print(f"Player '{player_name}' not found or score is unchanged.")
+        else:
+            print("Score updated successfully.")
+    except mysql.connector.Error as err:
+        # Handle errors
+        print("Error updating score:", err)
+
+# Function to draw game window
+def draw_window(red, blue, red_bullets, blue_bullets, red_health, blue_health):
     WIN.blit(SPACE, (0,0))
     pygame.draw.rect(WIN, BLACK, BORDER )
 
@@ -77,7 +135,91 @@ def draw_window(red, blue, red_bullets, blue_bullets,red_health, blue_health):
 
     pygame.display.update()
 
+def get_player_name(player_number):
+    root = tk.Tk()
+    root.withdraw()
+
+    style = ttk.Style()
+    style.theme_use('clam')
+
+    players = []
+    for player_number in range(1, 3):
+        dialog = simpledialog.askstring(f"Enter Player {player_number} Name", f"Player {player_number} Name:")
+        players.append(dialog)
+
+    try:
+        cnx = mysql.connector.connect(**db_config)
+        cursor = cnx.cursor()
+
+        # Ensure the table exists before insertion
+        create_table(cursor)
+
+        insert_query = "INSERT INTO player_scores (player_name, score) VALUES (%s, %s)"
+        for player in players:
+            cursor.execute(insert_query, (player, 0))  # Assuming the initial score is 0 for each player
+
+        cnx.commit()
+        cursor.close()
+        cnx.close()
+
+        print("Players inserted into the database.")
+    except mysql.connector.Error as err:
+        print("Error inserting player names:", err)
+
+    return players
+
+
+# Database configuration
+db_config = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'Jiten123@',
+    'database': 'Spaco',
+}
+
+# Function to create a database table
+def create_table(cursor):
+    try:
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS player_scores (id INT AUTO_INCREMENT PRIMARY KEY, player_name VARCHAR(255), score INT)"
+        )
+    except mysql.connector.Error as err:
+        print("Error creating table:", err)
+
+
+# Function to create the database and table
+def create_database():
+    try:
+        # Connect to MySQL without specifying a database
+        cnx = mysql.connector.connect(
+            host=db_config['host'],
+            user=db_config['user'],
+            password=db_config['password']
+        )
+        cursor = cnx.cursor()
+
+        # Create a new database if it doesn't exist
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_config['database']}")
+
+        # Switch to the specified database
+        cursor.execute(f"USE {db_config['database']}")
+
+        # Create a table to store player name and score if it doesn't exist
+        create_table(cursor)
+
+        # Commit the changes and close the cursor and connection
+        cnx.commit()
+        cursor.close()
+        cnx.close()
+
+        print(f"Database '{db_config['database']}' and table 'player_scores' created successfully.")
+    except mysql.connector.Error as err:
+        print("Error creating database and table:", err)
+
+# Function for blue spaceship movement
+
 def blue_movement(keys_pressed, blue):
+    # Handle blue spaceship movement
         if keys_pressed[pygame.K_a] and blue.x - VEL>0: #left
             blue.x -= VEL
         if keys_pressed[pygame.K_d] and blue.x + VEL<592: #right
@@ -85,9 +227,11 @@ def blue_movement(keys_pressed, blue):
         if keys_pressed[pygame.K_w] and blue.y - VEL>0: #up
             blue.y -= VEL
         if keys_pressed[pygame.K_s] and blue.y +VEL<700: #down
-            blue.y += VEL
+            blue.y += VEL    
 
+# Function for red spaceship movement
 def red_movement(keys_pressed, red):
+    # Handle red spaceship movement
         if keys_pressed[pygame.K_LEFT] and red.x -VEL>BORDER.x + BORDER.width: #left
             red.x -= VEL
         if keys_pressed[pygame.K_RIGHT] and red.x + VEL + red.width < WIDTH: #right
@@ -96,48 +240,42 @@ def red_movement(keys_pressed, red):
             red.y -= VEL
         if keys_pressed[pygame.K_DOWN] and red.y +VEL<700: #down
             red.y += VEL
-#def bot_movement(red):
-#    global last_movement_time, direction
 
-#    current_time = time.time()
-#    time_elapsed = current_time - last_movement_time
-
-#    if time_elapsed >= MOVEMENT_DURATION + COOLDOWN_DURATION:
-#        direction = random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
-#        last_movement_time = current_time
-
-#    if direction == 'UP' and red.y - VEL > BORDER.y:
-#        red.y -= VEL
-#    elif direction == 'DOWN' and red.y + VEL < BORDER.y + JOYSTICK_SPACE_HEIGHT:
-#        red.y += VEL
-#    elif direction == 'LEFT' and red.x - VEL > BORDER.x + BORDER.width:
-#        red.x -= VEL
-#    elif direction == 'RIGHT' and red.x + VEL + red.width < WIDTH:
-#        red.x += VEL
-
-def bot_movement(red, blue):
+# Function for bot movement
+def bot_movement(red, blue,blue_bullets):
+    # Bot movement logic
     global last_movement_time, direction_x, direction_y
 
     current_time = time.time()
     time_elapsed = current_time - last_movement_time
 
-    if time_elapsed >= MOVEMENT_DURATION + COOLDOWN_DURATION:
-        # Determine X-direction based on the blue player's X-coordinate
-        options = ["RIGHT", "LEFT"]
-        options2 = ['UP', 'DOWN']
-        direction_x = random.choice(options)  # Stop X-movement if already aligned
+    # Determine X-direction based on the blue player's X-coordinate
+    options = ["RIGHT", "LEFT"]
+    options2 = ['UP', 'DOWN']
+    direction_x = random.choice(options) if time_elapsed >= MOVEMENT_DURATION else direction_x  # Stop X-movement if already aligned
 
-        # Determine Y-direction based on the blue player's Y-coordinate
-        if red.y < blue.y:  # If red player is above the blue player
-            direction_y = 'DOWN'
-        elif red.y > blue.y:  # If red player is below the blue player
-            direction_y = 'UP'
-            
-        else:
-            direction_y = random.choice(options2)  # Stop Y-movement if already aligned
+    # Determine Y-direction based on the blue player's Y-coordinate
+    if red.y < blue.y:  # If red player is above the blue player
+        direction_y = 'DOWN'
+    elif red.y > blue.y:  # If red player is below the blue player
+        direction_y = 'UP'
+    else:
+        direction_y = random.choice(options2) if time_elapsed >= MOVEMENT_DURATION else direction_y  # Stop Y-movement if already aligned
 
-        last_movement_time = current_time
+    # Evade bullets if they are detected in the vicinity
+    for bullet in blue_bullets:
+        # Check if bullet is coming towards the bot's position
+        if bullet.x > red.x:
+            direction_x = 'LEFT' if red.x + VEL > BORDER.x + BORDER.width else direction_x
+        elif bullet.x < red.x:
+            direction_x = 'RIGHT' if red.x - VEL + red.width < WIDTH else direction_x
 
+        if bullet.y > red.y:
+            direction_y = 'UP' if red.y + VEL > BORDER.y else direction_y
+        elif bullet.y < red.y:
+            direction_y = 'DOWN' if red.y - VEL + red.height < BORDER.y + JOYSTICK_SPACE_HEIGHT else direction_y
+
+    # Movement logic when no specific player movement triggers bot movement
     if direction_x == 'LEFT' and red.x - VEL > BORDER.x + BORDER.width:
         red.x -= VEL
     elif direction_x == 'RIGHT' and red.x + VEL + red.width < WIDTH:
@@ -148,8 +286,12 @@ def bot_movement(red, blue):
     elif direction_y == 'DOWN' and red.y + VEL < BORDER.y + JOYSTICK_SPACE_HEIGHT:
         red.y += VEL
 
+    last_movement_time = current_time
 
+
+# Function for bot shooting
 def bot_shoot(red_bullets, red):
+    # Bot shooting logic
     # Simulate bot shooting randomly
     shoot_probability = random.random()  # Generate a random number between 0 and 1
     
@@ -158,7 +300,9 @@ def bot_shoot(red_bullets, red):
         red_bullets.append(bullet)
         BULLET_HIT_SOUND.play()
 
+# Function for joystick-controlled red spaceship movement
 def joystick_red_movement(red):
+    # Joystick movement logic
     # Get joystick axes
     left_right_axis = pygame.joystick.Joystick(0).get_axis(0)  # X-axis
     up_down_axis = pygame.joystick.Joystick(0).get_axis(1)  # Y-axis
@@ -180,7 +324,9 @@ pygame.joystick.init()
 joysticks = [pygame.joystick.Joystick(i) for i in range(pygame.joystick.get_count())]
 print(joysticks)
 
+# Function to handle bullets and collisions
 def handle_bullets(blue_bullets, red_bullets, blue, red):
+    # Bullet handling logic
      for bullet in blue_bullets:
           bullet.x += BULLET_VEL
           if red.colliderect(bullet):
@@ -197,18 +343,23 @@ def handle_bullets(blue_bullets, red_bullets, blue, red):
           elif bullet.x <0:
                red_bullets.remove(bullet)
 
+
+# Function to draw the winner on the screen
 def draw_winner(text):
+    # Draw winner logic
      draw_text = WIN_FONT.render(text, 1, WHITE)
      WIN.blit(draw_text, (WIDTH/2- draw_text.get_width()/2,HEIGHT/2 - draw_text.get_height()/2))
      pygame.display.update()
      pygame.time.delay(5000)
 
-
-
+# Main game function
 def main():
-
+    # Game setup and main loop
     red = pygame.Rect(1150, 350, SPACESHIP_WIDTH, SPACESHIP_HEIGHT)
     blue = pygame.Rect(150, 350, SPACESHIP_WIDTH, SPACESHIP_HEIGHT)
+
+    blue_name = get_player_name(1)
+    red_name = get_player_name(2)
 
     blue_bullets=[]
     red_bullets=[]
@@ -233,7 +384,7 @@ def main():
 
             
             if is_bot == True:
-                bot_movement(red,blue)
+                bot_movement(red,blue,blue_bullets)
                 bot_shoot(red_bullets, red)
 
             if event.type == pygame.KEYDOWN:
@@ -260,12 +411,21 @@ def main():
             if event.type == BLUE_HIT:
                  blue_health -=1
 
+
+
         win_text=''
         if red_health<=0:
              win_text = "BLUE WINS!"
              
         if blue_health<=0:
              win_text = "RED WINS!"
+
+        if win_text != '':
+            draw_winner(win_text)
+            update_score(blue_name, blue_health)
+            update_score(red_name, red_health)
+            main_menu()
+            break
              
         
         if win_text != '':
@@ -289,24 +449,15 @@ pygame.display.set_caption("Menu")
 BG = pygame.image.load("Assets/Background2.png").convert()  # Load the image
 BG = pygame.transform.scale(BG, (1400, 800))
 
-def get_font(size): # Returns Press-Start-2P in the desired size
-    return pygame.font.Font("Assets/font.ttf", size)
 
+# Function to start the game
 def play():
+    # Play screen logic
     while True:
         PLAY_MOUSE_POS = pygame.mouse.get_pos()
 
         SCREEN.fill("black")
         main()
-        #PLAY_TEXT = get_font(45).render("This is the PLAY screen.", True, "White")
-        #PLAY_RECT = PLAY_TEXT.get_rect(center=(640, 260))
-        #SCREEN.blit(PLAY_TEXT, PLAY_RECT)
-
-        #PLAY_BACK = Button(image=None, pos=(640, 460), 
-        #                   text_input="BACK", font=get_font(75), base_color="White", hovering_color="Green")
-
-        #PLAY_BACK.changeColor(PLAY_MOUSE_POS)
-        #PLAY_BACK.update(SCREEN)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -321,8 +472,12 @@ def play():
 bot_selected = False
 player_selected = False
 
+def get_font(size): # Returns Press-Start-2P in the desired size
+    return pygame.font.Font("Assets/font.ttf", size)
+
+# Function to handle options menu
 def options():
-    
+    # Options menu logic
     global is_bot, bot_selected, player_selected
     options_background = pygame.image.load("Assets/BAckground2.png")
     options_background = pygame.transform.scale(options_background, (1400, 800))
@@ -362,9 +517,11 @@ def options():
         PLAYER_BUTTON.update(SCREEN)
 
         for event in pygame.event.get():
+            
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if OPTIONS_BACK.checkForInput(OPTIONS_MOUSE_POS):
                     main_menu()
@@ -378,19 +535,6 @@ def options():
                     player_selected = True
 
         pygame.display.update()
-        #OPTIONS_MOUSE_POS = pygame.mouse.get_pos()
-
-        #SCREEN.fill("white")
-
-        #OPTIONS_TEXT = get_font(45).render("This is the OPTIONS screen.", True, "Black")
-        #OPTIONS_RECT = OPTIONS_TEXT.get_rect(center=(640, 260))
-        #SCREEN.blit(OPTIONS_TEXT, OPTIONS_RECT)
-
-        #OPTIONS_BACK = Button(image=None, pos=(640, 460), 
-          #                  text_input="BACK", font=get_font(75), base_color="Black", hovering_color="Green")
-
-        #OPTIONS_BACK.changeColor(OPTIONS_MOUSE_POS)
-        #OPTIONS_BACK.update(SCREEN)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -402,7 +546,9 @@ def options():
 
         pygame.display.update()
 
+# Main menu function
 def main_menu():
+    # Main menu logic
     while True:
         SCREEN.blit(BG, (0, 0))
 
@@ -439,5 +585,7 @@ def main_menu():
 
         pygame.display.update()
 
+
+# Start the main menu
 if __name__ == "__main__":
     main_menu()
